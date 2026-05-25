@@ -12,24 +12,14 @@
 		<link rel="icon" href="./assets/img/favicons/favicon-64.png" sizes="64x64">
 
         <title>Space Impact</title>
+        
     </head>
     <body>
         <div class="section">
 
             <div class="container">
 
-                <div class="game">
-                    <?php
-                        $cols = 84;
-                        $rows = 48;
-                        for ($y = 0; $y < $rows; $y++) {
-                            for ($x = 0; $x < $cols; $x++) {
-                            $id = "p-{$x}-{$y}";
-                                echo "<div class=\"pixel\" id=\"$id\"></div>";
-                            }
-                        }
-                    ?>
-                </div>
+                <div class="game"></div>
 
                 <div class="controls-game">
                     <span><span class="control-icon" aria-hidden="true">&uarr;</span> CIMA</span>

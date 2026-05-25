@@ -1,5 +1,29 @@
 $(document).ready(function (){
 
+    const gridCols = 84;
+    const gridRows = 48;
+
+    function createPixelGrid(){
+        const game = document.querySelector('.game');
+        if (!game) return;
+
+        const fragment = document.createDocumentFragment();
+        game.textContent = '';
+
+        for (let y = 0; y < gridRows; y++){
+            for (let x = 0; x < gridCols; x++){
+                const pixel = document.createElement('div');
+                pixel.className = 'pixel';
+                pixel.id = `p-${x}-${y}`;
+                fragment.appendChild(pixel);
+            }
+        }
+
+        game.appendChild(fragment);
+    }
+
+    createPixelGrid();
+
     // ================================================================================================
     // CONFIGURAÇÕES GERAIS
     // ================================================================================================

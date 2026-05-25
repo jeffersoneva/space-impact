@@ -1,6 +1,6 @@
 # Space Impact
 
-Jogo arcade em pixel art inspirado no clássico **Space Impact**, desenvolvido com PHP, HTML, CSS, JavaScript e jQuery.
+Jogo arcade em pixel art inspirado no clássico **Space Impact**, desenvolvido com HTML, CSS, JavaScript e jQuery.
 
 A tela do jogo é montada como uma grade de pixels, onde a nave, os inimigos, os tiros, as vidas, o placar e a mensagem de game over são desenhados dinamicamente.
 
@@ -17,7 +17,6 @@ A tela do jogo é montada como uma grade de pixels, onde a nave, os inimigos, os
 
 ## Tecnologias utilizadas
 
-- PHP
 - HTML5
 - CSS3
 - JavaScript
@@ -25,37 +24,17 @@ A tela do jogo é montada como uma grade de pixels, onde a nave, os inimigos, os
 
 ## Como executar
 
-Este projeto usa PHP para gerar a grade inicial do jogo, então ele deve ser executado em um servidor local com suporte a PHP.
+Este projeto é estático e pode ser aberto diretamente no navegador, sem servidor local.
 
-### Usando XAMPP
+### Abrindo direto
 
-1. Clone este repositório dentro da pasta `htdocs` do XAMPP:
+1. Clone ou baixe este repositório:
 
 ```bash
 git clone https://github.com/jeffersoneva/space-impact.git
 ```
 
-2. Inicie o Apache no painel do XAMPP.
-
-3. Acesse no navegador:
-
-```text
-http://localhost/space-impact/
-```
-
-### Usando o servidor embutido do PHP
-
-Na raiz do projeto, execute:
-
-```bash
-php -S localhost:8000
-```
-
-Depois acesse:
-
-```text
-http://localhost:8000
-```
+2. Abra o arquivo `index.html` no navegador.
 
 ## Controles
 
@@ -73,7 +52,7 @@ http://localhost:8000
 
 ```text
 space-impact/
-├── index.php
+├── index.html
 ├── assets/
 │   ├── css/
 │   │   └── style.css
