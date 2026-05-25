@@ -14,25 +14,35 @@
         <title>Space Impact</title>
     </head>
     <body>
-
         <div class="section">
-            <div class="box-game">
+
+            <div class="container">
+
                 <div class="game">
-                     <?php
+                    <?php
                         $cols = 84;
                         $rows = 48;
                         for ($y = 0; $y < $rows; $y++) {
                             for ($x = 0; $x < $cols; $x++) {
-                                $id = "p-{$x}-{$y}";
+                            $id = "p-{$x}-{$y}";
                                 echo "<div class=\"pixel\" id=\"$id\"></div>";
                             }
                         }
                     ?>
                 </div>
-                <div class="bg-game"></div>
-                <span id="msg-game">CARREGANDO...</span>
+
+                <div class="controls-game">
+                    <span><span class="control-icon" aria-hidden="true">&uarr;</span> CIMA</span>
+                    <span><span class="control-icon" aria-hidden="true">&darr;</span> BAIXO</span>
+                    <span><span class="control-icon" aria-hidden="true">&larr;</span> ESQUERDA</span>
+                    <span><span class="control-icon" aria-hidden="true">&rarr;</span> DIREITA</span>
+                    <span><span class="control-key">F</span> ATIRAR</span>
+                    <span><span class="control-key">ESPA&Ccedil;O</span> INICIAR/PAUSAR</span>
+                </div>
+                
             </div>
+
         </div>
        
     </body>
-</hrml>
+</html>

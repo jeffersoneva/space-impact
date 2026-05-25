@@ -10,11 +10,12 @@ $(document).ready(function (){
     const fireCooldown = 125;                    // Cadencia de tiros em millesegundos
     const minSpawnY = 12;                        // limite vertical inferior mínimo para inimigos
     const maxSpawnY = 40;                        // limite vertical inferior máximo para inimigos
-    const returnmsg = $("#msg-game")             // Elemento que exibirá mensagens ao jogador
     let bgPosition = 0;                          // Posição inicial da imagem de fundo
     let stoped = true;                           // Jogo começa pausado
+    let gameOver = false;                        // Bloqueia novas acoes apos o fim do jogo
     let canFire = true;                          // Intervalo de disparos
     let lifes = 3;                               // Quantidades iniciais de vidas
+    let score = 0;                               // Pontuacao do jogador
 
     // ================================================================================================
     // ANIMAÇÃO BACKGROUND
@@ -23,16 +24,10 @@ $(document).ready(function (){
     function animateBackground(){
         if (!stoped){
             bgPosition -= 0.3; // velocidade lenta
-            $('.bg-game').css('background-position', `${bgPosition}px 0`);
+            $('.game').css('background-position', `${bgPosition}px 0`);
         }
         requestAnimationFrame(animateBackground);
     }
-
-    // ================================================================================================
-    // TEXTO INICIAL DA MENSAGEM
-    // ================================================================================================
-
-    returnmsg.text("Precione ESPAÇO para iniciar/pausar.")
 
     // ================================================================================================
     // POSIÇÕES INICIAIS
@@ -48,11 +43,62 @@ $(document).ready(function (){
     ];
 
     // 3 VIDAS INICIAIS
-    const hearts = [
+    const initialHearts = [
         { x: 2, y: 2 },
         { x: 8, y: 2 },
         { x: 14, y: 2 }
     ];
+    const hearts = initialHearts.map((heart) => ({ ...heart }));
+
+    // DIGITOS DO PLACAR
+    const scoreStartX = 66;
+    const scoreStartY = 2;
+    const scoreDigitSpacing = 1;
+    const scoreDigitWidth = 3;
+    const maxScore = 9999;
+    const scoreDigits = {
+        0: ["111", "101", "101", "101", "111"],
+        1: ["010", "110", "010", "010", "111"],
+        2: ["111", "001", "111", "100", "111"],
+        3: ["111", "001", "111", "001", "111"],
+        4: ["101", "101", "111", "001", "001"],
+        5: ["111", "100", "111", "001", "111"],
+        6: ["111", "100", "111", "101", "111"],
+        7: ["111", "001", "001", "001", "001"],
+        8: ["111", "101", "111", "101", "111"],
+        9: ["111", "101", "111", "001", "111"]
+    };
+
+    // TEXTO DE GAME OVER
+    const gameOverText = "GAME OVER";
+    const restartLines = ["APERTE R PARA", "REINICIAR"];
+    const gameOverLetterSpacing = 1;
+    const restartLetterSpacing = 1;
+    const restartTitleGap = 4;
+    const restartLineGap = 1;
+    const gameOverFont = {
+        " ": ["000", "000", "000", "000", "000", "000", "000"],
+        A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+        E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+        G: ["11111", "10000", "10000", "10111", "10001", "10001", "11111"],
+        M: ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+        O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+        R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+        V: ["10001", "10001", "10001", "10001", "10001", "01010", "00100"]
+    };
+    const restartFont = {
+        " ": ["00", "00", "00", "00", "00"],
+        A: ["010", "101", "111", "101", "101"],
+        C: ["111", "100", "100", "100", "111"],
+        E: ["111", "100", "110", "100", "111"],
+        I: ["111", "010", "010", "010", "111"],
+        M: ["101", "111", "111", "101", "101"],
+        N: ["10001", "11001", "10101", "10011", "10001"],
+        O: ["111", "101", "101", "101", "111"],
+        P: ["111", "101", "111", "100", "100"],
+        R: ["110", "101", "110", "101", "101"],
+        T: ["111", "010", "010", "010", "010"]
+    };
 
     // NAVE DO JOGADOR
     const shipPixels = [
@@ -91,14 +137,208 @@ $(document).ready(function (){
         }
     }
 
+    function resetHearts(){
+        hearts.length = 0;
+        for (const heart of initialHearts){
+            hearts.push({ ...heart });
+        }
+    }
+
     // DECREMENTA VIDAS
     function loseLife(){
+        if (gameOver || hearts.length === 0){
+            return true;
+        }
+
         hearts.pop();
         renderHearts();
+
         if (hearts.length === 0){
-            stoped = true;
-            returnmsg.text('GAME OVER');
+            endGame();
+            return true;
         }
+
+        return false;
+    }
+
+    // ================================================================================================
+    // PONTUACAO
+    // ================================================================================================
+
+    function renderScore(){
+        $('.score-pixel').css('background-color', 'var(--transparent)');
+        $('.score-pixel').removeClass('score-pixel');
+
+        const scoreText = String(Math.min(score, maxScore)).padStart(4, '0');
+
+        for (let digitIndex = 0; digitIndex < scoreText.length; digitIndex++){
+            const digit = scoreText[digitIndex];
+            const shape = scoreDigits[digit];
+            const offset = digitIndex * (scoreDigitWidth + scoreDigitSpacing);
+
+            for (let y = 0; y < shape.length; y++){
+                for (let x = 0; x < shape[y].length; x++){
+                    if (shape[y][x] === "1"){
+                        const px = scoreStartX + offset + x;
+                        const py = scoreStartY + y;
+                        if (px >= 0 && px <= maxX && py >= 0 && py <= maxY){
+                            $(`#p-${px}-${py}`).css('background-color', 'var(--primary)').addClass('score-pixel');
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function addScore(points){
+        score += points;
+        renderScore();
+    }
+
+    // ================================================================================================
+    // FIM DE JOGO
+    // ================================================================================================
+
+    function clearShip(){
+        const offsets = [
+            { x: lastOffsetX, y: lastOffsetY },
+            { x: offsetX, y: offsetY }
+        ];
+
+        for (const offset of offsets){
+            for (const [x, y] of shipPixels){
+                const px = x + offset.x;
+                const py = y + offset.y;
+                if (px >= 0 && px <= maxX && py >= 0 && py <= maxY){
+                    $(`#p-${px}-${py}`).css('background-color', 'var(--transparent)');
+                }
+            }
+        }
+    }
+
+    function clearEnemies(){
+        for (const enemy of enemies){
+            for (const [dx, dy] of enemy.type.pixels){
+                const x = enemy.x - dx;
+                const y = enemy.y + dy;
+                if (x >= 0 && x <= maxX && y >= 0 && y <= maxY){
+                    $(`#p-${x}-${y}`).css('background-color', 'var(--transparent)');
+                }
+            }
+        }
+        enemies.length = 0;
+    }
+
+    function clearProjectiles(){
+        for (const projectile of projectiles){
+            clearInterval(projectile.interval);
+            for (const x of [projectile.x - 1, projectile.x]){
+                if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
+                    $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--transparent)');
+                }
+            }
+        }
+        projectiles.length = 0;
+    }
+
+    function getPixelTextWidth(text, font, letterSpacing){
+        let width = 0;
+
+        for (let i = 0; i < text.length; i++){
+            width += font[text[i]][0].length;
+            if (i < text.length - 1){
+                width += letterSpacing;
+            }
+        }
+
+        return width;
+    }
+
+    function renderPixelText(text, font, startX, startY, letterSpacing, className){
+        let cursorX = startX;
+
+        for (const char of text){
+            const shape = font[char];
+
+            for (let y = 0; y < shape.length; y++){
+                for (let x = 0; x < shape[y].length; x++){
+                    if (shape[y][x] === "1"){
+                        const px = cursorX + x;
+                        const py = startY + y;
+                        if (px >= 0 && px <= maxX && py >= 0 && py <= maxY){
+                            $(`#p-${px}-${py}`).css('background-color', 'var(--primary)').addClass(className);
+                        }
+                    }
+                }
+            }
+
+            cursorX += shape[0].length + letterSpacing;
+        }
+    }
+
+    function clearGameOver(){
+        $('.game-over-pixel').css('background-color', 'var(--transparent)');
+        $('.game-over-pixel').removeClass('game-over-pixel');
+    }
+
+    function renderGameOver(){
+        clearGameOver();
+
+        const titleWidth = getPixelTextWidth(gameOverText, gameOverFont, gameOverLetterSpacing);
+        const titleHeight = gameOverFont.G.length;
+        const restartLineHeight = restartFont.A.length;
+        const restartBlockHeight = (restartLines.length * restartLineHeight) + ((restartLines.length - 1) * restartLineGap);
+        const totalHeight = titleHeight + restartTitleGap + restartBlockHeight;
+        const titleStartX = Math.floor(((maxX + 1) - titleWidth) / 2);
+        const titleStartY = Math.floor(((maxY + 1) - totalHeight) / 2);
+        let restartStartY = titleStartY + titleHeight + restartTitleGap;
+
+        renderPixelText(gameOverText, gameOverFont, titleStartX, titleStartY, gameOverLetterSpacing, 'game-over-pixel');
+
+        for (const line of restartLines){
+            const restartWidth = getPixelTextWidth(line, restartFont, restartLetterSpacing);
+            const restartStartX = Math.floor(((maxX + 1) - restartWidth) / 2);
+
+            renderPixelText(line, restartFont, restartStartX, restartStartY, restartLetterSpacing, 'game-over-pixel');
+            restartStartY += restartLineHeight + restartLineGap;
+        }
+    }
+
+    function endGame(){
+        gameOver = true;
+        stoped = true;
+        stopMoving();
+        clearEnemySpawnTimers();
+        clearProjectiles();
+        clearEnemies();
+        clearShip();
+        renderGameOver();
+    }
+
+    function restartGame(){
+        stopMoving();
+        clearProjectiles();
+        clearEnemies();
+        clearShip();
+        clearGameOver();
+
+        gameOver = false;
+        stoped = false;
+        canFire = true;
+        lifes = 3;
+        score = 0;
+        bgPosition = 0;
+        offsetX = 0;
+        offsetY = 22;
+        lastOffsetX = offsetX;
+        lastOffsetY = offsetY;
+
+        $('.game').css('background-position', '0 0');
+        resetHearts();
+        renderShip();
+        renderHearts();
+        renderScore();
+        scheduleEnemySpawns();
     }
 
     // ============================================
@@ -141,8 +381,9 @@ $(document).ready(function (){
                 [4, -2], [4, -1], [4, 1], [4, 2], [5, -2], [5, -1], [5, 1], [5, 2], [6, -1], [6, 1], [7, 0]
             ],
             start: 2,           // Tempo para aparecer na tela
-            interval: 2000,     // Intervalo entre uma nave e outra
+            interval: 1000,     // Intervalo entre uma nave e outra
             hp: 1,              // Quantidade de tiros suportados
+            points: 1,          // Pontos ao destruir
             speed: 4            // Velocidade de movimento
         },
         {
@@ -151,8 +392,9 @@ $(document).ready(function (){
                 [3, -1], [3, 1], [3, 3], [4, -2], [4, 0], [4, 2]
             ],
             start: 15000,       // Tempo para aparecer na tela
-            interval: 6000,     // Intervalo entre uma nave e outra
+            interval: 3000,     // Intervalo entre uma nave e outra
             hp: 2,              // Quantidade de tiros suportados
+            points: 2,          // Pontos ao destruir
             speed: 3            // Velocidade de movimento
         },
         {
@@ -162,14 +404,16 @@ $(document).ready(function (){
                 [4, 2], [5, -3], [5, -1], [5, 0], [5, 1], [5, 3]
             ],
             start: 30000,       // Tempo para aparecer na tela
-            interval: 20000,    // Intervalo entre uma nave e outra
+            interval: 10000,    // Intervalo entre uma nave e outra
             hp: 5,              // Quantidade de tiros suportados
+            points: 5,          // Pontos ao destruir
             speed: 2            // Velocidade de movimento
         }
     ];
 
     // Array para inimigos
     const enemies = [];
+    const enemySpawnTimers = [];
 
     // Verifica se é possivel gerar um novo inimigo sem sobreopor em outro já existente
     function canSpawnAt(type, x, y){
@@ -191,6 +435,8 @@ $(document).ready(function (){
 
     // Cria um novo inimigo do tipo informado, tentando evitar a sobreoposição
     function spawnEnemy(type){
+        if (gameOver) return;
+
         const baseX = maxX;
         for (let attempts = 0; attempts < 5; attempts++){
             const baseY = Math.floor(Math.random() * (maxSpawnY - minSpawnY + 1)) + minSpawnY;
@@ -208,8 +454,33 @@ $(document).ready(function (){
         }
     }
 
+    function clearEnemySpawnTimers(){
+        for (const timer of enemySpawnTimers){
+            clearTimeout(timer);
+            clearInterval(timer);
+        }
+        enemySpawnTimers.length = 0;
+    }
+
+    function scheduleEnemySpawns(){
+        clearEnemySpawnTimers();
+
+        for (const type of enemyTypes){
+            const startTimer = setTimeout(() => {
+                const intervalTimer = setInterval(() => {
+                    if (!stoped && !gameOver) spawnEnemy(type);
+                }, type.interval);
+                enemySpawnTimers.push(intervalTimer);
+            }, type.start);
+
+            enemySpawnTimers.push(startTimer);
+        }
+    }
+
     // Desenha o inimigo na tela
     function renderEnemies(){
+        if (gameOver) return;
+
         for (const enemy of enemies){
             for (const [dx, dy] of enemy.type.pixels){
                 const x = enemy.x - dx;
@@ -223,7 +494,8 @@ $(document).ready(function (){
 
     // Atualiza inimigos
     function updateEnemies(){
-        
+        if (gameOver) return;
+
         //Apaga inimigos da posição antiga e move-o para a esquerda de acordo com a velocidade
         for (const enemy of enemies){ 
             for (const [dx, dy] of enemy.type.pixels){
@@ -251,19 +523,12 @@ $(document).ready(function (){
                     if (x === sx + offsetX && y === sy + offsetY){
                         
                         // Perde uma vida
-                        loseLife();
-                        
-                        // Remove todos os inimigos da tela
-                        for (const rem of enemies){
-                            for (const [dx, dy] of rem.type.pixels){
-                                const rx = rem.x - dx;
-                                const ry = rem.y + dy;
-                                if (rx >= 0 && rx <= maxX && ry >= 0 && ry <= maxY){
-                                    $(`#p-${rx}-${ry}`).css('background-color', 'var(--transparent)');
-                                }
-                            }
+                        const hasGameOver = loseLife();
+                        clearEnemies();
+
+                        if (hasGameOver){
+                            return;
                         }
-                        enemies.length = 0; // limpa array
 
                         // Resetar posição da nave
                         offsetX = 0;
@@ -284,7 +549,7 @@ $(document).ready(function (){
     const projectiles = [];
 
     function fireProjectile(){
-        if (stoped) return; // bloqueia tiro se pausado
+        if (stoped || gameOver) return; // bloqueia tiro se pausado ou encerrado
 
         const originX = offsetX + 12;
         const originY = offsetY + 3;
@@ -299,6 +564,11 @@ $(document).ready(function (){
         };
 
         projectile.interval = setInterval(() => {
+            if (gameOver){
+                clearInterval(projectile.interval);
+                return;
+            }
+
             $(`#p-${projectile.x}-${projectile.y}`).css('background-color', 'var(--transparent)');
             projectile.x++;
 
@@ -315,6 +585,7 @@ $(document).ready(function (){
                                 const py = enemy.y + cy;
                                 $(`#p-${px}-${py}`).css('background-color', 'var(--transparent)');
                             }
+                            addScore(enemy.type.points);
                             enemies.splice(i, 1);
                         }
                         clearInterval(projectile.interval);
@@ -342,7 +613,7 @@ $(document).ready(function (){
     let currentDirection = null;
 
     function startMoving(direction){
-        if (moveInterval || stoped) return;
+        if (moveInterval || stoped || gameOver) return;
 
         currentDirection = direction;
         moveInterval = setInterval(() => {
@@ -367,6 +638,19 @@ $(document).ready(function (){
 
     $(document).on("keydown", function (e){
         const directions = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+        if (gameOver){
+            if (e.key.toLowerCase() === "r"){
+                e.preventDefault();
+                restartGame();
+                return;
+            }
+
+            if (directions.includes(e.key) || e.key === " "){
+                e.preventDefault();
+            }
+            return;
+        }
 
         if (directions.includes(e.key)){
             e.preventDefault();
@@ -408,20 +692,15 @@ $(document).ready(function (){
 
     renderShip();
     renderHearts();
+    renderScore();
     animateBackground();
 
     setInterval(() => {
-        if (!stoped){
+        if (!stoped && !gameOver){
             updateEnemies();
             renderEnemies();
         }
     }, 200);
 
-    for (const type of enemyTypes){
-        setTimeout(() => {
-            setInterval(() => {
-                if (!stoped) spawnEnemy(type);
-            }, type.interval);
-        }, type.start);
-    }
+    scheduleEnemySpawns();
 });
