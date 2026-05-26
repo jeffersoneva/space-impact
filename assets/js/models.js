@@ -34,16 +34,37 @@ $(document).ready(function (){
     const fireCooldown = 125;                    // Cadencia de tiros em millesegundos
     const minSpawnY = 12;                        // limite vertical inferior mínimo para inimigos
     const maxSpawnY = 40;                        // limite vertical inferior máximo para inimigos
+    const gameUpdateInterval = 200;              // Intervalo principal de atualizacao do jogo
+    const difficultyLevelDuration = 20000;       // Tempo para avancar um nivel de dificuldade
+    const bossBaseHp = 40;                       // Vida inicial do boss
+    const bossHpIncrease = 20;                   // Vida extra do boss a cada level
+    const bossBaseShotInterval = 2000;           // Cadencia inicial dos tiros do boss
+    const bossBaseProjectileSpeed = projectileSpeed * 2; // Metade da velocidade do tiro do jogador
+    const bossPowerIncrease = 0.25;              // Aumento de cadencia e velocidade por level
+    const bossMaxHitsBeforeLifeLoss = 3;         // Acertos do boss necessarios para perder uma vida
+    const fireSoundPath = './assets/sounds/fire.wav';
+    const dieSoundPath = './assets/sounds/die.wav';
+    const gameOverSoundPath = './assets/sounds/game-over.wav';
     let bgPosition = 0;                          // Posição inicial da imagem de fundo
     let stoped = true;                           // Jogo começa pausado
     let gameOver = false;                        // Bloqueia novas acoes apos o fim do jogo
     let canFire = true;                          // Intervalo de disparos
-    let lifes = 3;                               // Quantidades iniciais de vidas
     let score = 0;                               // Pontuacao do jogador
+    let gameElapsedTime = 0;                     // Tempo jogado sem contar pausa
+    let playerLevel = 1;                         // Level atual do jogador
 
     // ================================================================================================
     // ANIMAÇÃO BACKGROUND
     // ================================================================================================
+
+    function playSound(soundPath){
+        const audio = new Audio(soundPath);
+        const playPromise = audio.play();
+
+        if (playPromise && typeof playPromise.catch === "function"){
+            playPromise.catch(() => {});
+        }
+    }
 
     function animateBackground(){
         if (!stoped){
@@ -75,11 +96,11 @@ $(document).ready(function (){
     const hearts = initialHearts.map((heart) => ({ ...heart }));
 
     // DIGITOS DO PLACAR
-    const scoreStartX = 66;
+    const scoreStartX = 63;
     const scoreStartY = 2;
     const scoreDigitSpacing = 1;
     const scoreDigitWidth = 3;
-    const maxScore = 9999;
+    const maxScore = 99999;
     const scoreDigits = {
         0: ["111", "101", "101", "101", "111"],
         1: ["010", "110", "010", "010", "111"],
@@ -92,6 +113,16 @@ $(document).ready(function (){
         8: ["111", "101", "111", "101", "111"],
         9: ["111", "101", "111", "001", "111"]
     };
+    const levelStartX = 26;
+    const levelStartY = 2;
+    const levelLetterSpacing = 1;
+    const levelFont = {
+        ...scoreDigits,
+        " ": ["0", "0", "0", "0", "0"],
+        ".": ["0", "0", "0", "0", "1"],
+        L: ["100", "100", "100", "100", "111"],
+        V: ["101", "101", "101", "101", "010"]
+    };
 
     // TEXTO DE GAME OVER
     const gameOverText = "GAME OVER";
@@ -100,6 +131,7 @@ $(document).ready(function (){
     const restartLetterSpacing = 1;
     const restartTitleGap = 4;
     const restartLineGap = 1;
+    const gameOverOffsetY = 4;
     const gameOverFont = {
         " ": ["000", "000", "000", "000", "000", "000", "000"],
         A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
@@ -175,9 +207,15 @@ $(document).ready(function (){
         }
 
         hearts.pop();
+        const hasNoLifeLeft = hearts.length === 0;
+
+        if (!hasNoLifeLeft){
+            playSound(dieSoundPath);
+        }
+
         renderHearts();
 
-        if (hearts.length === 0){
+        if (hasNoLifeLeft){
             endGame();
             return true;
         }
@@ -193,7 +231,7 @@ $(document).ready(function (){
         $('.score-pixel').css('background-color', 'var(--transparent)');
         $('.score-pixel').removeClass('score-pixel');
 
-        const scoreText = String(Math.min(score, maxScore)).padStart(4, '0');
+        const scoreText = String(Math.min(score, maxScore)).padStart(5, '0');
 
         for (let digitIndex = 0; digitIndex < scoreText.length; digitIndex++){
             const digit = scoreText[digitIndex];
@@ -212,6 +250,12 @@ $(document).ready(function (){
                 }
             }
         }
+    }
+
+    function renderLevel(){
+        $('.level-pixel').css('background-color', 'var(--transparent)');
+        $('.level-pixel').removeClass('level-pixel');
+        renderPixelText(`LV. ${playerLevel}`, levelFont, levelStartX, levelStartY, levelLetterSpacing, 'level-pixel');
     }
 
     function addScore(points){
@@ -253,15 +297,37 @@ $(document).ready(function (){
         enemies.length = 0;
     }
 
-    function clearProjectiles(){
-        for (const projectile of projectiles){
-            clearInterval(projectile.interval);
-            for (const x of [projectile.x - 1, projectile.x]){
-                if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
-                    $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--transparent)');
-                }
+    function clearProjectilePixel(projectile){
+        if (!projectile.drawnXs || projectile.drawnXs.length === 0) return;
+
+        for (const x of projectile.drawnXs){
+            if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
+                $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--transparent)').removeClass('projectile-pixel');
             }
         }
+
+        projectile.drawnXs = [];
+    }
+
+    function removeProjectile(projectile){
+        clearInterval(projectile.interval);
+        clearProjectilePixel(projectile);
+
+        const projectileIndex = projectiles.indexOf(projectile);
+        if (projectileIndex >= 0){
+            projectiles.splice(projectileIndex, 1);
+        }
+    }
+
+    function clearProjectiles(){
+        $('.projectile-pixel').css('background-color', 'var(--transparent)');
+        $('.projectile-pixel').removeClass('projectile-pixel');
+
+        for (const projectile of projectiles){
+            clearInterval(projectile.interval);
+            projectile.drawnXs = [];
+        }
+
         projectiles.length = 0;
     }
 
@@ -314,7 +380,7 @@ $(document).ready(function (){
         const restartBlockHeight = (restartLines.length * restartLineHeight) + ((restartLines.length - 1) * restartLineGap);
         const totalHeight = titleHeight + restartTitleGap + restartBlockHeight;
         const titleStartX = Math.floor(((maxX + 1) - titleWidth) / 2);
-        const titleStartY = Math.floor(((maxY + 1) - totalHeight) / 2);
+        const titleStartY = Math.floor(((maxY + 1) - totalHeight) / 2) + gameOverOffsetY;
         let restartStartY = titleStartY + titleHeight + restartTitleGap;
 
         renderPixelText(gameOverText, gameOverFont, titleStartX, titleStartY, gameOverLetterSpacing, 'game-over-pixel');
@@ -332,25 +398,32 @@ $(document).ready(function (){
         gameOver = true;
         stoped = true;
         stopMoving();
-        clearEnemySpawnTimers();
+        stopTouchFire();
         clearProjectiles();
         clearEnemies();
+        clearBoss();
         clearShip();
+        playSound(gameOverSoundPath);
         renderGameOver();
     }
 
     function restartGame(){
         stopMoving();
+        stopTouchFire();
         clearProjectiles();
         clearEnemies();
+        clearBoss();
         clearShip();
         clearGameOver();
 
         gameOver = false;
-        stoped = false;
+        stoped = true;
         canFire = true;
-        lifes = 3;
         score = 0;
+        gameElapsedTime = 0;
+        playerLevel = 1;
+        currentEnemyLevel = 0;
+        enemyTypes = enemyTypeLevels[currentEnemyLevel];
         bgPosition = 0;
         offsetX = 0;
         offsetY = 22;
@@ -362,6 +435,7 @@ $(document).ready(function (){
         renderShip();
         renderHearts();
         renderScore();
+        renderLevel();
         scheduleEnemySpawns();
     }
 
@@ -398,28 +472,24 @@ $(document).ready(function (){
     // ============================================
 
     // POSIÇÃO E FORMATO
-    const enemyTypes = [
+    const enemyTypeShapes = [
         {
             pixels: [
                 [0, 0], [1, -1], [1, 0], [1, 1], [2, -1], [2, 1], [3, -1], [3, 1],
                 [4, -2], [4, -1], [4, 1], [4, 2], [5, -2], [5, -1], [5, 1], [5, 2], [6, -1], [6, 1], [7, 0]
             ],
-            start: 2,           // Tempo para aparecer na tela
-            interval: 1000,     // Intervalo entre uma nave e outra
+            start: 0,           // Tempo para aparecer na tela
             hp: 1,              // Quantidade de tiros suportados
-            points: 1,          // Pontos ao destruir
-            speed: 4            // Velocidade de movimento
+            points: 1           // Pontos ao destruir
         },
         {
             pixels: [
                 [0, 0], [1, -1], [1, 0], [1, 1], [2, -2], [2, -1], [2, 0], [2, 1], [2, 2], [3, -3],
                 [3, -1], [3, 1], [3, 3], [4, -2], [4, 0], [4, 2]
             ],
-            start: 15000,       // Tempo para aparecer na tela
-            interval: 3000,     // Intervalo entre uma nave e outra
+            start: 10000,       // Tempo para aparecer na tela
             hp: 2,              // Quantidade de tiros suportados
-            points: 2,          // Pontos ao destruir
-            speed: 3            // Velocidade de movimento
+            points: 2           // Pontos ao destruir
         },
         {
             pixels: [
@@ -427,17 +497,46 @@ $(document).ready(function (){
                 [2, 3], [3, -3], [3, -2], [3, 0], [3, 2], [3, 3], [4, -2], [4, -1], [4, 0], [4, 1],
                 [4, 2], [5, -3], [5, -1], [5, 0], [5, 1], [5, 3]
             ],
-            start: 30000,       // Tempo para aparecer na tela
-            interval: 10000,    // Intervalo entre uma nave e outra
+            start: 20000,       // Tempo para aparecer na tela
             hp: 5,              // Quantidade de tiros suportados
-            points: 5,          // Pontos ao destruir
-            speed: 2            // Velocidade de movimento
+            points: 5           // Pontos ao destruir
         }
     ];
 
+    const enemyDifficultySettings = [
+        [
+            { interval: 2500, speed: 2 },
+            { interval: 5000, speed: 3 },
+            { interval: 10000, speed: 4 }
+        ],
+        [
+            { interval: 1800, speed: 1 },
+            { interval: 3500, speed: 2 },
+            { interval: 7500, speed: 3 }
+        ],
+        [
+            { interval: 1200, speed: 1 },
+            { interval: 2500, speed: 1 },
+            { interval: 5000, speed: 2 }
+        ]
+    ];
+
+    const enemyTypeLevels = enemyDifficultySettings.map((settings) => (
+        enemyTypeShapes.map((type, index) => ({
+            ...type,
+            interval: settings[index].interval,
+            speed: settings[index].speed
+        }))
+    ));
+
+    const enemyCycleDuration = difficultyLevelDuration * enemyTypeLevels.length;
+    let currentEnemyLevel = 0;
+    let enemyTypes = enemyTypeLevels[currentEnemyLevel];
+
     // Array para inimigos
     const enemies = [];
-    const enemySpawnTimers = [];
+    const enemySpawnMargin = 1;
+    let nextEnemySpawnTimes = [];
 
     // Verifica se é possivel gerar um novo inimigo sem sobreopor em outro já existente
     function canSpawnAt(type, x, y){
@@ -448,7 +547,8 @@ $(document).ready(function (){
                 for (const [dx2, dy2] of type.pixels){
                     const ex2 = x - dx2;
                     const ey2 = y + dy2;
-                    if (ex1 === ex2 && ey1 === ey2){
+                    const isTooClose = Math.abs(ex1 - ex2) <= enemySpawnMargin && Math.abs(ey1 - ey2) <= enemySpawnMargin;
+                    if (isTooClose){
                         return false;
                     }
                 }
@@ -458,15 +558,17 @@ $(document).ready(function (){
     }
 
     // Cria um novo inimigo do tipo informado, tentando evitar a sobreoposição
-    function spawnEnemy(type){
+    function spawnEnemy(type, typeIndex){
         if (gameOver) return;
 
-        const baseX = maxX;
+        const rightmostOffset = Math.max(...type.pixels.map(([dx]) => dx));
+        const baseX = maxX + 1 + rightmostOffset;
         for (let attempts = 0; attempts < 5; attempts++){
             const baseY = Math.floor(Math.random() * (maxSpawnY - minSpawnY + 1)) + minSpawnY;
             if (canSpawnAt(type, baseX, baseY)){
                 const enemy = {
                     type,
+                    typeIndex,
                     x: baseX,
                     y: baseY,
                     hp: type.hp,
@@ -478,26 +580,44 @@ $(document).ready(function (){
         }
     }
 
-    function clearEnemySpawnTimers(){
-        for (const timer of enemySpawnTimers){
-            clearTimeout(timer);
-            clearInterval(timer);
-        }
-        enemySpawnTimers.length = 0;
+    function scheduleEnemySpawns(){
+        nextEnemySpawnTimes = enemyTypes.map((type) => type.start + type.interval);
     }
 
-    function scheduleEnemySpawns(){
-        clearEnemySpawnTimers();
+    function updateEnemySpawns(){
+        for (let i = 0; i < enemyTypes.length; i++){
+            const type = enemyTypes[i];
+            if (gameElapsedTime < type.start){
+                continue;
+            }
 
-        for (const type of enemyTypes){
-            const startTimer = setTimeout(() => {
-                const intervalTimer = setInterval(() => {
-                    if (!stoped && !gameOver) spawnEnemy(type);
-                }, type.interval);
-                enemySpawnTimers.push(intervalTimer);
-            }, type.start);
+            if (nextEnemySpawnTimes[i] === undefined){
+                nextEnemySpawnTimes[i] = Math.max(gameElapsedTime, type.start) + type.interval;
+            }
 
-            enemySpawnTimers.push(startTimer);
+            while (gameElapsedTime >= nextEnemySpawnTimes[i]){
+                spawnEnemy(type, i);
+                nextEnemySpawnTimes[i] += type.interval;
+            }
+        }
+    }
+
+    function setEnemyLevel(levelIndex){
+        currentEnemyLevel = levelIndex;
+        enemyTypes = enemyTypeLevels[currentEnemyLevel];
+        nextEnemySpawnTimes = enemyTypes.map((type) => Math.max(gameElapsedTime, type.start) + type.interval);
+
+        for (const enemy of enemies){
+            if (enemy.typeIndex !== undefined){
+                enemy.type = enemyTypes[enemy.typeIndex];
+            }
+        }
+    }
+
+    function updateEnemyDifficulty(){
+        const nextEnemyLevel = Math.min(Math.floor(gameElapsedTime / difficultyLevelDuration), enemyTypeLevels.length - 1);
+        if (nextEnemyLevel !== currentEnemyLevel){
+            setEnemyLevel(nextEnemyLevel);
         }
     }
 
@@ -514,6 +634,16 @@ $(document).ready(function (){
                 }
             }
         }
+    }
+
+    function enemyPassedLeftSide(enemy){
+        return enemy.type.pixels.every(([dx]) => enemy.x - dx < 0);
+    }
+
+    function resetPlayerPosition(){
+        offsetX = 0;
+        offsetY = 22;
+        renderShip();
     }
 
     // Atualiza inimigos
@@ -537,6 +667,12 @@ $(document).ready(function (){
             }
         }
 
+        for (let i = enemies.length - 1; i >= 0; i--){
+            if (enemyPassedLeftSide(enemies[i])){
+                enemies.splice(i, 1);
+            }
+        }
+
         // Verifica colisão com a nave do jogador
         for (let i = enemies.length - 1; i >= 0; i--){
             const enemy = enemies[i];
@@ -548,6 +684,7 @@ $(document).ready(function (){
                         
                         // Perde uma vida
                         const hasGameOver = loseLife();
+                        clearProjectiles();
                         clearEnemies();
 
                         if (hasGameOver){
@@ -555,15 +692,287 @@ $(document).ready(function (){
                         }
 
                         // Resetar posição da nave
-                        offsetX = 0;
-                        offsetY = 22;
-                        renderShip();
+                        resetPlayerPosition();
+                        scheduleEnemySpawns();
 
                         return; // Sai da verificação após colisão
                     }
                 }
             }
         }
+    }
+
+    // ============================================
+    // BOSS
+    // ============================================
+
+    const bossShape = [
+        "000001111100000",
+        "000111111111000",
+        "001111111111100",
+        "011111111111110",
+        "111101111011111",
+        "111000111000111",
+        "111101111011111",
+        "111111111111111",
+        "111111111111111",
+        "111110000111111",
+        "111111001111111",
+        "011111111111110",
+        "001111111111100",
+        "000111111111000",
+        "000001111100000"
+    ];
+    const bossPixels = [];
+    for (let y = 0; y < bossShape.length; y++){
+        for (let x = 0; x < bossShape[y].length; x++){
+            if (bossShape[y][x] === "1"){
+                bossPixels.push([x, y]);
+            }
+        }
+    }
+    const bossWidth = bossShape[0].length;
+    const bossHeight = bossShape.length;
+    const bossTargetX = maxX - bossWidth - 4;
+    const bossMinY = 10;
+    const bossMaxY = maxY - bossHeight;
+    const bossMoveSpeed = 1;
+    const minBossShotInterval = 350;
+    const minBossProjectileSpeed = 12;
+    const bossCannonPixels = [
+        [-3, 7],
+        [-2, 7],
+        [-1, 7]
+    ];
+    const bossCannonTip = bossCannonPixels[0];
+    const bossLeftmostOffsetX = Math.min(...bossPixels.concat(bossCannonPixels).map(([x]) => x));
+    const bossSpawnX = maxX + 1 - bossLeftmostOffsetX;
+
+    let boss = null;
+    let bossHitsTaken = 0;
+    let bossShotTimer = null;
+    const bossProjectiles = [];
+
+    function createBoss(){
+        return {
+            x: bossSpawnX,
+            y: Math.floor((bossMinY + bossMaxY) / 2),
+            hp: bossBaseHp + ((playerLevel - 1) * bossHpIncrease),
+            directionY: 1,
+            entering: true
+        };
+    }
+
+    function getBossPowerMultiplier(){
+        return 1 + ((playerLevel - 1) * bossPowerIncrease);
+    }
+
+    function getBossShotInterval(){
+        return Math.max(minBossShotInterval, Math.round(bossBaseShotInterval / getBossPowerMultiplier()));
+    }
+
+    function getBossProjectileSpeed(){
+        return Math.max(minBossProjectileSpeed, Math.round(bossBaseProjectileSpeed / getBossPowerMultiplier()));
+    }
+
+    function clearBossShotTimer(){
+        clearInterval(bossShotTimer);
+        bossShotTimer = null;
+    }
+
+    function clearBossProjectilePixel(projectile){
+        if (!projectile.drawnXs || projectile.drawnXs.length === 0) return;
+
+        for (const x of projectile.drawnXs){
+            if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
+                $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--transparent)').removeClass('boss-projectile');
+            }
+        }
+
+        projectile.drawnXs = [];
+    }
+
+    function removeBossProjectile(projectile){
+        clearInterval(projectile.interval);
+        clearBossProjectilePixel(projectile);
+
+        const projectileIndex = bossProjectiles.indexOf(projectile);
+        if (projectileIndex >= 0){
+            bossProjectiles.splice(projectileIndex, 1);
+        }
+    }
+
+    function clearBossProjectiles(){
+        $('.boss-projectile').css('background-color', 'var(--transparent)');
+        $('.boss-projectile').removeClass('boss-projectile');
+        while (bossProjectiles.length > 0){
+            const projectile = bossProjectiles[0];
+            clearInterval(projectile.interval);
+            projectile.drawnXs = [];
+            bossProjectiles.shift();
+        }
+    }
+
+    function clearBoss(){
+        clearBossShotTimer();
+        clearBossProjectiles();
+        $('.boss-pixel').css('background-color', 'var(--transparent)');
+        $('.boss-pixel').removeClass('boss-pixel');
+        boss = null;
+    }
+
+    function getBossPixelPositions(){
+        if (!boss) return [];
+
+        return bossPixels.concat(bossCannonPixels).map(([x, y]) => ({
+            x: boss.x + x,
+            y: boss.y + y
+        }));
+    }
+
+    function renderBoss(){
+        if (!boss || gameOver) return;
+
+        for (const pixel of getBossPixelPositions()){
+            if (pixel.x >= 0 && pixel.x <= maxX && pixel.y >= 0 && pixel.y <= maxY){
+                $(`#p-${pixel.x}-${pixel.y}`).css('background-color', 'var(--primary)').addClass('boss-pixel');
+            }
+        }
+    }
+
+    function updateBoss(){
+        if (!boss || gameOver) return;
+
+        $('.boss-pixel').css('background-color', 'var(--transparent)');
+        $('.boss-pixel').removeClass('boss-pixel');
+
+        if (boss.entering){
+            boss.x--;
+
+            if (boss.x <= bossTargetX){
+                boss.x = bossTargetX;
+                boss.entering = false;
+                startBossShooting();
+            }
+
+            return;
+        }
+
+        boss.y += boss.directionY * bossMoveSpeed;
+
+        if (boss.y <= bossMinY){
+            boss.y = bossMinY;
+            boss.directionY = 1;
+        } else if (boss.y >= bossMaxY){
+            boss.y = bossMaxY;
+            boss.directionY = -1;
+        }
+    }
+
+    function projectileHitsPlayer(projectile){
+        return shipPixels.some(([x, y]) => (
+            projectile.x === x + offsetX && projectile.y === y + offsetY
+        ));
+    }
+
+    function restartCurrentBossAttempt(){
+        clearProjectiles();
+        clearBossProjectiles();
+        bossHitsTaken = 0;
+        resetPlayerPosition();
+    }
+
+    function handleBossProjectileHit(projectile){
+        bossHitsTaken++;
+        removeBossProjectile(projectile);
+
+        if (bossHitsTaken < bossMaxHitsBeforeLifeLoss){
+            return;
+        }
+
+        const hasGameOver = loseLife();
+        if (hasGameOver){
+            return;
+        }
+
+        restartCurrentBossAttempt();
+    }
+
+    function fireBossProjectile(){
+        if (!boss || boss.entering || stoped || gameOver) return;
+
+        const projectile = {
+            x: boss.x + bossCannonTip[0] - 1,
+            y: boss.y + bossCannonTip[1],
+            drawnXs: [],
+            interval: null
+        };
+
+        projectile.interval = setInterval(() => {
+            if (gameOver || !boss){
+                removeBossProjectile(projectile);
+                return;
+            }
+
+            if (stoped){
+                return;
+            }
+
+            clearBossProjectilePixel(projectile);
+            projectile.x--;
+
+            if (projectileHitsPlayer(projectile)){
+                handleBossProjectileHit(projectile);
+                return;
+            }
+
+            if (projectile.x < 0){
+                removeBossProjectile(projectile);
+                return;
+            }
+
+            for (const x of [projectile.x, projectile.x + 1]){
+                if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
+                    $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--primary)').addClass('boss-projectile');
+                    projectile.drawnXs.push(x);
+                }
+            }
+        }, getBossProjectileSpeed());
+
+        bossProjectiles.push(projectile);
+    }
+
+    function startBossShooting(){
+        clearBossShotTimer();
+        bossShotTimer = setInterval(() => {
+            fireBossProjectile();
+        }, getBossShotInterval());
+    }
+
+    function startBossPhase(){
+        nextEnemySpawnTimes = [];
+        bossHitsTaken = 0;
+        boss = createBoss();
+        renderBoss();
+    }
+
+    function restartEnemyCycle(){
+        gameElapsedTime = 0;
+        setEnemyLevel(0);
+        scheduleEnemySpawns();
+    }
+
+    function defeatBoss(){
+        clearBoss();
+        playerLevel++;
+        renderLevel();
+        restartEnemyCycle();
+    }
+
+    function projectileHitsBoss(projectile){
+        return boss && getBossPixelPositions().some((pixel) => (
+            projectile.x === pixel.x && projectile.y === pixel.y
+        ));
     }
 
     // ============================================
@@ -578,23 +987,38 @@ $(document).ready(function (){
         const originX = offsetX + 12;
         const originY = offsetY + 3;
 
-        const audio = new Audio('./assets/sounds/fire.wav');
-        audio.play();
+        playSound(fireSoundPath);
 
         const projectile = {
             x: originX,
             y: originY,
+            drawnXs: [],
             interval: null
         };
 
         projectile.interval = setInterval(() => {
             if (gameOver){
-                clearInterval(projectile.interval);
+                removeProjectile(projectile);
                 return;
             }
 
-            $(`#p-${projectile.x}-${projectile.y}`).css('background-color', 'var(--transparent)');
+            if (stoped){
+                return;
+            }
+
+            clearProjectilePixel(projectile);
             projectile.x++;
+
+            if (projectileHitsBoss(projectile)){
+                boss.hp--;
+
+                if (boss.hp <= 0){
+                    defeatBoss();
+                }
+
+                removeProjectile(projectile);
+                return;
+            }
 
             for (let i = enemies.length - 1; i >= 0; i--){
                 const enemy = enemies[i];
@@ -612,18 +1036,23 @@ $(document).ready(function (){
                             addScore(enemy.type.points);
                             enemies.splice(i, 1);
                         }
-                        clearInterval(projectile.interval);
+                        removeProjectile(projectile);
                         return;
                     }
                 }
             }
 
             if (projectile.x > maxX){
-                clearInterval(projectile.interval);
+                removeProjectile(projectile);
                 return;
             }
 
-            $(`#p-${projectile.x}-${projectile.y}`).css('background-color', 'var(--primary)');
+            for (const x of [projectile.x, projectile.x - 1]){
+                if (x >= 0 && x <= maxX && projectile.y >= 0 && projectile.y <= maxY){
+                    $(`#p-${x}-${projectile.y}`).css('background-color', 'var(--primary)').addClass('projectile-pixel');
+                    projectile.drawnXs.push(x);
+                }
+            }
         }, projectileSpeed);
 
         projectiles.push(projectile);
@@ -660,9 +1089,59 @@ $(document).ready(function (){
     // EVENTOS DE TECLADO
     // ============================================
 
-    $(document).on("keydown", function (e){
-        const directions = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    const directions = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    let touchFireInterval = null;
 
+    function togglePause(){
+        if (gameOver){
+            restartGame();
+            return;
+        }
+
+        stoped = !stoped;
+        if (stoped){
+            stopMoving();
+            console.log("Jogo pausado");
+        } else {
+            console.log("Jogo iniciado");
+        }
+    }
+
+    function triggerFire(){
+        if (canFire && !stoped && !gameOver){
+            fireProjectile();
+            canFire = false;
+            setTimeout(() => canFire = true, fireCooldown);
+        }
+    }
+
+    function pressDirection(direction){
+        if (!directions.includes(direction) || stoped || gameOver) return;
+
+        if (currentDirection !== direction){
+            stopMoving();
+            startMoving(direction);
+        }
+    }
+
+    function releaseDirection(direction){
+        if (direction === currentDirection){
+            stopMoving();
+        }
+    }
+
+    function startTouchFire(){
+        clearInterval(touchFireInterval);
+        triggerFire();
+        touchFireInterval = setInterval(triggerFire, fireCooldown);
+    }
+
+    function stopTouchFire(){
+        clearInterval(touchFireInterval);
+        touchFireInterval = null;
+    }
+
+    $(document).on("keydown", function (e){
         if (gameOver){
             if (e.key.toLowerCase() === "r"){
                 e.preventDefault();
@@ -678,35 +1157,56 @@ $(document).ready(function (){
 
         if (directions.includes(e.key)){
             e.preventDefault();
-            if (currentDirection !== e.key && !stoped){
-                stopMoving();
-                startMoving(e.key);
-            }
+            pressDirection(e.key);
         }
 
         if (e.key.toLowerCase() === "f"){
-            if (canFire && !stoped){
-                fireProjectile();
-                canFire = false;
-                setTimeout(() => canFire = true, fireCooldown);
-            }
+            triggerFire();
         }
 
         if (e.key === " "){
             e.preventDefault();
-            stoped = !stoped;
-            if (stoped){
-                stopMoving();
-                console.log("Jogo pausado");
-            } else {
-                console.log("Jogo iniciado");
-            }
+            togglePause();
         }
     });
 
     $(document).on("keyup", function (e){
-        if (e.key === currentDirection){
-            stopMoving();
+        releaseDirection(e.key);
+    });
+
+    $('.touch-button').on('contextmenu', function (e){
+        e.preventDefault();
+    });
+
+    $('.touch-button').on('pointerdown', function (e){
+        e.preventDefault();
+
+        this.setPointerCapture?.(e.originalEvent.pointerId);
+        $(this).addClass('is-pressed');
+
+        const direction = $(this).data('touch-direction');
+        const action = $(this).data('touch-action');
+
+        if (direction){
+            pressDirection(direction);
+        } else if (action === "fire"){
+            startTouchFire();
+        } else if (action === "pause"){
+            togglePause();
+        }
+    });
+
+    $('.touch-button').on('pointerup pointercancel pointerleave', function (e){
+        e.preventDefault();
+        $(this).removeClass('is-pressed');
+
+        const direction = $(this).data('touch-direction');
+        const action = $(this).data('touch-action');
+
+        if (direction){
+            releaseDirection(direction);
+        } else if (action === "fire"){
+            stopTouchFire();
         }
     });
 
@@ -717,14 +1217,34 @@ $(document).ready(function (){
     renderShip();
     renderHearts();
     renderScore();
+    renderLevel();
     animateBackground();
 
     setInterval(() => {
         if (!stoped && !gameOver){
+            if (!boss){
+                gameElapsedTime += gameUpdateInterval;
+
+                if (gameElapsedTime >= enemyCycleDuration){
+                    startBossPhase();
+                } else {
+                    updateEnemyDifficulty();
+                    updateEnemySpawns();
+                }
+            }
+
+            if (boss){
+                updateBoss();
+            }
+
             updateEnemies();
             renderEnemies();
+
+            if (boss){
+                renderBoss();
+            }
         }
-    }, 200);
+    }, gameUpdateInterval);
 
     scheduleEnemySpawns();
 });

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <link rel="stylesheet" href="./assets/css/style.css">
 
@@ -19,7 +21,23 @@
 
             <div class="container">
 
-                <div class="game"></div>
+                <div class="game-stage">
+                    <div class="game"></div>
+
+                    <div class="touch-controls" aria-label="Controles touch">
+                        <div class="touch-dpad" aria-label="Direcional">
+                            <button class="touch-button touch-up" type="button" data-touch-direction="ArrowUp" aria-label="Cima">&uarr;</button>
+                            <button class="touch-button touch-left" type="button" data-touch-direction="ArrowLeft" aria-label="Esquerda">&larr;</button>
+                            <button class="touch-button touch-right" type="button" data-touch-direction="ArrowRight" aria-label="Direita">&rarr;</button>
+                            <button class="touch-button touch-down" type="button" data-touch-direction="ArrowDown" aria-label="Baixo">&darr;</button>
+                        </div>
+
+                        <div class="touch-actions" aria-label="Acoes">
+                            <button class="touch-button touch-pause" type="button" data-touch-action="pause" aria-label="Iniciar ou pausar">II</button>
+                            <button class="touch-button touch-fire" type="button" data-touch-action="fire" aria-label="Atirar">F</button>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="controls-game">
                     <span><span class="control-icon" aria-hidden="true">&uarr;</span> CIMA</span>

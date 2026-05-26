@@ -13,7 +13,7 @@ html,body{
     height:100%;
     color:var(--transparent);
     background-color:var(--light);
-    overflow: none;
+    overflow: hidden;
     font-family: "Poppins", sans-serif;
     font-weight: 400;
     font-style: normal;
@@ -39,6 +39,12 @@ body{
     overflow: hidden;
     height: auto;
 }
+.game-stage{
+    width: 100%;
+    position: relative;
+    touch-action: none;
+    user-select: none;
+}
 .game{
     width: 100%;
     aspect-ratio: 84 / 48;
@@ -56,6 +62,81 @@ body{
     aspect-ratio: 1 / 1;
     width: 100%;
     background: var(--transparent);
+}
+.touch-controls{
+    --touch-size: clamp(44px, 12vw, 74px);
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: clamp(10px, 3.2vw, 28px);
+    pointer-events: none;
+    box-sizing: border-box;
+}
+.touch-dpad{
+    display: grid;
+    grid-template-columns: repeat(3, var(--touch-size));
+    grid-template-rows: repeat(3, var(--touch-size));
+    gap: clamp(4px, 1.2vw, 8px);
+}
+.touch-actions{
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(10px, 2.8vw, 18px);
+}
+.touch-button{
+    width: var(--touch-size);
+    height: var(--touch-size);
+    border: 1px solid rgba(116, 166, 129, .85);
+    border-radius: 8px;
+    color: var(--primary);
+    background: rgba(9, 10, 10, .58);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 8px 18px rgba(0,0,0,.28);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    font: inherit;
+    font-size: clamp(.75rem, 4vw, 1.05rem);
+    font-weight: 700;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+}
+.touch-button:active,
+.touch-button.is-pressed{
+    background: rgba(116, 166, 129, .88);
+    color: var(--dark);
+    transform: translateY(1px);
+}
+.touch-up{
+    grid-column: 2;
+    grid-row: 1;
+}
+.touch-left{
+    grid-column: 1;
+    grid-row: 2;
+}
+.touch-right{
+    grid-column: 3;
+    grid-row: 2;
+}
+.touch-down{
+    grid-column: 2;
+    grid-row: 3;
+}
+.touch-fire{
+    width: calc(var(--touch-size) * 1.22);
+    height: calc(var(--touch-size) * 1.22);
+    border-radius: 50%;
+}
+.touch-pause{
+    width: calc(var(--touch-size) * .86);
+    height: calc(var(--touch-size) * .86);
+    align-self: center;
+    font-size: clamp(.55rem, 3vw, .85rem);
 }
 .controls-game{
     width: 100%;
@@ -97,6 +178,14 @@ body{
 .control-key{
     padding: 0 5px;
 }
+@media (hover: none), (pointer: coarse){
+    .touch-controls{
+        display: flex;
+    }
+    .controls-game{
+        display: none;
+    }
+}
 @media (max-width: 640px){
     .controls-game{
         height: 64px;
@@ -109,5 +198,14 @@ body{
         min-width: 16px;
         height: 16px;
         font-size: .38rem;
+    }
+}
+@media (max-width: 520px){
+    .touch-controls{
+        --touch-size: clamp(38px, 12vw, 56px);
+        padding: 8px;
+    }
+    .touch-actions{
+        gap: 8px;
     }
 }
